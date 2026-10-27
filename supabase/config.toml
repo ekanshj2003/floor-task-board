@@ -1,0 +1,15 @@
+project_id = "floor-task-board"
+
+# All four functions check access themselves (secret header or user login),
+# so the platform's JWT check is switched off for them.
+[functions.notify]
+verify_jwt = false
+
+[functions.reminders]
+verify_jwt = false
+
+[functions.login]
+verify_jwt = false
+
+[functions.admin-users]
+verify_jwt = false

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Notification Keys</title>
+<meta name="robots" content="noindex">
+<style>
+  :root{--bg:#EEF0EE;--surface:#fff;--ink:#1B2422;--muted:#5E6B67;--line:#CDD4D1;--accent:#0B5E7A;color-scheme:light}
+  @media (prefers-color-scheme:dark){:root{--bg:#121816;--surface:#1A2220;--ink:#E4EAE7;--muted:#97A49F;--line:#33403C;--accent:#4FB3D3;color-scheme:dark}}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,sans-serif}
+  main{max-width:640px;margin:0 auto;padding:32px 16px;display:flex;flex-direction:column;gap:16px}
+  h1{margin:0;font-size:24px}
+  .box{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px}
+  label{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+  code{font:13px/1.5 ui-monospace,Menlo,monospace;word-break:break-all;user-select:all}
+  button{font:inherit;padding:10px 16px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;align-self:flex-start}
+  button.copy{background:transparent;color:var(--accent);padding:4px 10px;font-size:13px}
+  .warn{color:#B42318}
+</style>
+</head>
+<body>
+<main>
+  <h1>Generate notification keys</h1>
+  <p>Open this file on your computer (double-click it). It creates the keys on your own computer; nothing is sent anywhere. Do this <b>once</b>, then save the three values in GitHub (README step 5).</p>
+  <button id="gen">Generate keys</button>
+  <div id="out" hidden>
+    <div class="box"><label>VAPID_PUBLIC_KEY (also goes in docs/config.js)</label><code id="pub"></code><button class="copy" data-c="pub">Copy</button></div>
+    <div class="box"><label>VAPID_PRIVATE_KEY <span class="warn">— keep secret</span></label><code id="priv"></code><button class="copy" data-c="priv">Copy</button></div>
+    <div class="box"><label>CRON_SECRET <span class="warn">— keep secret</span></label><code id="cron"></code><button class="copy" data-c="cron">Copy</button></div>
+    <p class="warn">Don't generate new keys later: phones that already turned on notifications would stop receiving them.</p>
+  </div>
+</main>
+<script>
+const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+document.getElementById("gen").addEventListener("click", async () => {
+  const kp = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+  const raw = await crypto.subtle.exportKey("raw", kp.publicKey);
+  const jwk = await crypto.subtle.exportKey("jwk", kp.privateKey);
+  document.getElementById("pub").textContent = b64url(raw);
+  document.getElementById("priv").textContent = jwk.d;
+  document.getElementById("cron").textContent = b64url(crypto.getRandomValues(new Uint8Array(24)));
+  document.getElementById("out").hidden = false;
+});
+document.querySelectorAll(".copy").forEach((b) => b.addEventListener("click", async () => {
+  const t = document.getElementById(b.dataset.c).textContent;
+  try { await navigator.clipboard.writeText(t); b.textContent = "Copied"; } catch { b.textContent = "Select and copy manually"; }
+  setTimeout(() => (b.textContent = "Copy"), 1500);
+}));
+</script>
+</body>
+</html>
