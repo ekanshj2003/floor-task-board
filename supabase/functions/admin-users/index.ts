@@ -37,15 +37,26 @@ Deno.serve(async (req) => {
     const { data: clash } = await admin.from("profiles").select("id").eq("username", username).maybeSingle();
     if (clash) return json({ error: `Username "${username}" is already taken.` }, 409);
 
+    const reportsTo = typeof b.reports_to === "string" && b.reports_to ? b.reports_to : null;
+    if (reportsTo) {
+      const { data: boss } = await admin.from("profiles").select("id").eq("id", reportsTo).maybeSingle();
+      if (!boss) return json({ error: "The chosen boss was not found." }, 400);
+    }
+
     const { data, error } = await admin.auth.admin.createUser({
-      email: realEmail || `${username}@staff.floortask.local`,
+      email: realEmail || `${username}@staff.floortask.app`,
       password: secret,
       phone: phone ?? undefined,
       email_confirm: true,
       phone_confirm: !!phone,
-      user_metadata: { name, username, dept: b.dept || null, role },
+      user_metadata: { name, username, dept: b.dept || null, role, reports_to: reportsTo },
     });
-    if (error) return json({ error: error.message }, 400);
+    if (error) {
+      if (phone && /phone/i.test(error.message)) {
+        return json({ error: "Mobile login isn't set up yet. Leave the mobile number empty for now." }, 400);
+      }
+      return json({ error: error.message }, 400);
+    }
     return json({ ok: true, id: data.user?.id });
   }
 
@@ -74,6 +85,11 @@ Deno.serve(async (req) => {
       if (id === me.id && !b.active) return json({ error: "You cannot deactivate yourself." }, 400);
       profile.active = b.active;
     }
+    if (b.reports_to !== undefined) {
+      const boss = typeof b.reports_to === "string" && b.reports_to ? b.reports_to : null;
+      if (boss === id) return json({ error: "A person cannot report to themselves." }, 400);
+      profile.reports_to = boss;
+    }
 
     const auth: Record<string, unknown> = {};
     if (typeof b.pin === "string" && b.pin) {
@@ -96,7 +112,7 @@ Deno.serve(async (req) => {
     }
     if (Object.keys(profile).length) {
       const { error } = await admin.from("profiles").update(profile).eq("id", id);
-      if (error) return json({ error: error.message }, 400);
+      if (error) return json({ error: error.message.replace(/^.*?:\s*(?=That would|A person)/, "") }, 400);
     }
     if (b.active === false) await admin.from("push_subscriptions").delete().eq("user_id", id);
     return json({ ok: true });

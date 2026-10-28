@@ -1,5 +1,5 @@
 // Floor Task Board service worker: offline shell + push notifications
-const CACHE = "ftb-v1";
+const CACHE = "ftb-v2";
 const SHELL = ["./", "index.html", "style.css", "app.js", "config.js", "manifest.webmanifest", "icons/icon-192.png", "icons/badge-72.png"];
 
 self.addEventListener("install", (e) => {

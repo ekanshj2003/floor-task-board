@@ -13,12 +13,17 @@ export const admin: SupabaseClient = createClient(
 
 const VAPID_PUBLIC = Deno.env.get("VAPID_PUBLIC_KEY");
 const VAPID_PRIVATE = Deno.env.get("VAPID_PRIVATE_KEY");
+let pushReady = false;
 if (VAPID_PUBLIC && VAPID_PRIVATE) {
-  webpush.setVapidDetails(
-    Deno.env.get("VAPID_SUBJECT") || "mailto:admin@example.com",
-    VAPID_PUBLIC,
-    VAPID_PRIVATE,
-  );
+  try {
+    let subject = (Deno.env.get("VAPID_SUBJECT") || "").trim();
+    if (subject && !/^(mailto:|https:)/i.test(subject)) subject = "mailto:" + subject;
+    webpush.setVapidDetails(subject || "mailto:admin@example.com", VAPID_PUBLIC.trim(), VAPID_PRIVATE.trim());
+    pushReady = true;
+  } catch (e) {
+    // A bad key must not stop the other functions (login, team) from working
+    console.error("VAPID keys are invalid; push disabled:", (e as Error).message);
+  }
 }
 
 export const cors = {
@@ -51,12 +56,27 @@ export async function caller(req: Request) {
   return profile as Profile;
 }
 
-export type Profile = { id: string; name: string; username: string | null; dept: string | null; role: string; active: boolean };
-export type Task = {
-  id: string; title: string; details: string; dept: string | null; assignee: string | null; assigned_by: string | null;
-  due: string; priority: string; status: string; created_at: string;
-  sent_24h: boolean; sent_morning: boolean; sent_1h: boolean; sent_overdue: boolean;
+export type Profile = {
+  id: string; name: string; username: string | null; dept: string | null; role: string; active: boolean;
+  reports_to: string | null;
 };
+export type Task = {
+  id: string; title: string; details: string; dept: string | null;
+  assignee: string | null; // Responsible
+  accountable: string | null; // Accountable
+  consulted: string[] | null; // Consulted
+  informed: string[] | null; // Informed
+  assigned_by: string | null;
+  due: string; priority: string; status: string; created_at: string;
+  sent_24h: boolean; sent_morning: boolean; sent_1h: boolean; sent_overdue: boolean; escalation_level: number;
+};
+
+export const ROLE_NAME: Record<string, string> = { R: "Responsible", A: "Accountable", C: "Consulted", I: "Informed" };
+
+/** Unique, non-empty list of user ids */
+export function uniq(ids: (string | null | undefined)[]) {
+  return [...new Set(ids.filter(Boolean) as string[])];
+}
 
 const IST = "Asia/Kolkata";
 export function fmtWhen(iso: string) {
@@ -67,8 +87,8 @@ export function fmtWhen(iso: string) {
 export function fmtTime(iso: string) {
   return new Date(iso).toLocaleString("en-IN", { timeZone: IST, hour: "numeric", minute: "2-digit" });
 }
-export function names(ids: (string | null)[]) {
-  return admin.from("profiles").select("id,name").in("id", ids.filter(Boolean) as string[])
+export function names(ids: (string | null | undefined)[]) {
+  return admin.from("profiles").select("id,name").in("id", uniq(ids))
     .then(({ data }) => Object.fromEntries((data || []).map((p) => [p.id, p.name as string])));
 }
 
@@ -88,8 +108,8 @@ export async function notifyUser(
     user_id: userId, task_id: msg.taskId ?? null, kind: msg.kind, title: msg.title, body: msg.body,
   });
 
-  if (!VAPID_PUBLIC || !VAPID_PRIVATE) {
-    console.error("VAPID keys are not set; skipping push");
+  if (!pushReady) {
+    console.error("VAPID keys are missing or invalid; alert saved in the app but not pushed");
     return 0;
   }
   const { data: subs } = await admin.from("push_subscriptions").select("*").eq("user_id", userId);

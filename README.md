@@ -92,6 +92,25 @@ Send each person the app link, their username and PIN.
 
 ---
 
+## Hierarchy and R/A/C/I
+
+**Reports to.** Every person can have a boss (Team → tap a person → *Reports to*). The **Org chart** tab shows the tree.
+- A boss sees all tasks of everyone below them. Admins see everything. Others see only tasks they are part of.
+- If a task is late, it **escalates** up the chart from the Responsible person: 4 hours late → their boss, 24 hours → the boss's boss, 48 hours → one more level. Change the timings in `supabase/functions/reminders/index.ts` (`ESCALATE_AFTER_HOURS`).
+
+**R/A/C/I on every task.**
+
+| Role | Who | Gets notified |
+|---|---|---|
+| **R** Responsible (one) | Does the work | New task + all deadline reminders + overdue |
+| **A** Accountable (one) | Owns the result; can mark done | Added + every update + overdue + done |
+| **C** Consulted (any number) | Gives input | Added + every update + done |
+| **I** Informed (any number) | Kept updated | Added + done |
+
+Staff who are Responsible or Accountable can change the status. Only managers and admins can edit task details.
+
+---
+
 ## Installing on staff phones
 
 **Android (Chrome)**
